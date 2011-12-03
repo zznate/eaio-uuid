@@ -31,11 +31,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.InetAddress;
-import java.net.InterfaceAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.Enumeration;
 
 import com.eaio.util.lang.Hex;
@@ -62,52 +58,48 @@ import com.eaio.util.lang.Hex;
  */
 public final class UUIDGen {
 
+    private static UUIDGen uuidGen;
+
     /**
-     * No instances needed.
+     * Initialize mac address on first invocation
      */
     private UUIDGen() {
-        super();
+        initClockSeqAndNode();
+    }
+
+    private static class UUIDGenHolder {
+      public static final UUIDGen instance = new UUIDGen();
+    }
+
+    public static UUIDGen getInstance() {
+      return UUIDGenHolder.instance;
     }
 
     /**
      * The last time value. Used to remove duplicate UUIDs.
      */
-    private static long lastTime = Long.MIN_VALUE;
+    private long lastTime = Long.MIN_VALUE;
     
     /**
      * The cached MAC address.
      */
-    private static String macAddress = null;
+    private String macAddress = null;
 
     /**
      * The current clock and node value.
      */
-    private static long clockSeqAndNode = 0x8000000000000000L;
+    private long clockSeqAndNode = 0x8000000000000000L;
 
-    static {
 
-        try {
-            Class.forName("java.net.InterfaceAddress");
-            macAddress = Class.forName(
-                    "com.eaio.uuid.UUIDGen$HardwareAddressLookup").newInstance().toString();
+
+    private void initClockSeqAndNode() {
+      try {
+            macAddress = HardwareAddressLookup.getHarwareAddress();
         }
-        catch (ExceptionInInitializerError err) {
-            // Ignored.
-        }
-        catch (ClassNotFoundException ex) {
-            // Ignored.
-        }
-        catch (LinkageError err) {
-            // Ignored.
-        }
-        catch (IllegalAccessException ex) {
-            // Ignored.
-        }
-        catch (InstantiationException ex) {
-            // Ignored.
-        }
-        catch (SecurityException ex) {
-            // Ignored.
+        catch (SocketException se) {
+           System.err.println("There was a problem trying to obtain a MAC address through Java API. " +
+           "Falling back to system command execution. Stack trace follows.");
+           se.printStackTrace();
         }
 
         if (macAddress == null) {
@@ -157,10 +149,10 @@ public final class UUIDGen {
 
             }
             catch (SecurityException ex) {
-                // Ignore it.
+                ex.printStackTrace();
             }
             catch (IOException ex) {
-                // Ignore it.
+                ex.printStackTrace();
             }
             finally {
                 if (p != null) {
@@ -182,7 +174,7 @@ public final class UUIDGen {
                         p.getOutputStream().close();
                     }
                     catch (IOException ex) {
-                        // Ignore it.
+
                     }
                     p.destroy();
                 }
@@ -218,7 +210,7 @@ public final class UUIDGen {
      * @return the clockSeqAndNode value
      * @see UUID#getClockSeqAndNode()
      */
-    public static long getClockSeqAndNode() {
+    public long getClockSeqAndNode() {
         return clockSeqAndNode;
     }
 
@@ -229,7 +221,7 @@ public final class UUIDGen {
      * @return a new time value
      * @see UUID#getTime()
      */
-    public static long newTime() {
+    public long newTime() {
         return createTime(System.currentTimeMillis());
     }
     
@@ -241,7 +233,7 @@ public final class UUIDGen {
      * @return a new time value
      * @see UUID#getTime()
      */
-    public static synchronized long createTime(long currentTimeMillis) {
+    public synchronized long createTime(long currentTimeMillis) {
 
         long time;
 
@@ -277,7 +269,7 @@ public final class UUIDGen {
      * 
      * @return the MAC address, may be <code>null</code>
      */
-    public static String getMACAddress() {
+    public String getMACAddress() {
         return macAddress;
     }
 
@@ -333,30 +325,23 @@ public final class UUIDGen {
      */
     static class HardwareAddressLookup {
 
-        /**
-         * @see java.lang.Object#toString()
-         */
-        @Override
-        public String toString() {
-            String out = null;
-            try {
-                Enumeration<NetworkInterface> ifs = NetworkInterface.getNetworkInterfaces();
-                if (ifs != null) {
-                    while (ifs.hasMoreElements()) {
-                        NetworkInterface iface = ifs.nextElement();
-                        byte[] hardware = iface.getHardwareAddress();
-                        if (hardware != null && hardware.length == 6
-                                && hardware[1] != (byte) 0xff) {
-                            out = Hex.append(new StringBuilder(36), hardware).toString();
-                            break;
-                        }
-                    }
-                }
+        public static String getHarwareAddress() throws SocketException {
+          String out = null;
+
+          Enumeration<NetworkInterface> ifs = NetworkInterface.getNetworkInterfaces();
+          if (ifs != null) {
+            while (ifs.hasMoreElements()) {
+              NetworkInterface iface = ifs.nextElement();
+              byte[] hardware = iface.getHardwareAddress();
+              if (hardware != null && hardware.length == 6
+                && hardware[1] != (byte) 0xff) {
+                out = Hex.append(new StringBuilder(36), hardware).toString();
+                break;
+              }
             }
-            catch (SocketException ex) {
-                // Ignore it.
-            }
-            return out;
+          }
+
+          return out;
         }
 
     }
