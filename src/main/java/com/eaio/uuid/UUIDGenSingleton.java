@@ -56,22 +56,22 @@ import com.eaio.util.lang.Hex;
  * @version $Id: UUIDGen.java 2914 2010-04-23 11:35:00Z johann $
  * @see com.eaio.uuid.UUID
  */
-public final class UUIDGen {
+public final class UUIDGenSingleton {
 
-    private static UUIDGen uuidGen;
+    private static UUIDGenSingleton uuidGen;
 
     /**
      * Initialize mac address on first invocation
      */
-    private UUIDGen() {
+    private UUIDGenSingleton() {
         initClockSeqAndNode();
     }
 
     private static class UUIDGenHolder {
-      public static final UUIDGen instance = new UUIDGen();
+      public static final UUIDGenSingleton instance = new UUIDGenSingleton();
     }
 
-    public static UUIDGen getInstance() {
+    public static UUIDGenSingleton getInstance() {
       return UUIDGenHolder.instance;
     }
 
@@ -281,43 +281,7 @@ public final class UUIDGen {
      * @throws IOException
      */
     static String getFirstLineOfCommand(String... commands) throws IOException {
-
-        Process p = null;
-        BufferedReader reader = null;
-
-        try {
-            p = Runtime.getRuntime().exec(commands);
-            reader = new BufferedReader(new InputStreamReader(
-                    p.getInputStream()), 128);
-
-            return reader.readLine();
-        }
-        finally {
-            if (p != null) {
-                if (reader != null) {
-                    try {
-                        reader.close();
-                    }
-                    catch (IOException ex) {
-                        // Ignore it.
-                    }
-                }
-                try {
-                    p.getErrorStream().close();
-                }
-                catch (IOException ex) {
-                    // Ignore it.
-                }
-                try {
-                    p.getOutputStream().close();
-                }
-                catch (IOException ex) {
-                    // Ignore it.
-                }
-                p.destroy();
-            }
-        }
-
+        return UUIDGen.getFirstLineOfCommand();
     }
 
     /**

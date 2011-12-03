@@ -31,7 +31,11 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.InterfaceAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.Enumeration;
 
 import com.eaio.util.lang.Hex;
@@ -58,48 +62,52 @@ import com.eaio.util.lang.Hex;
  */
 public final class UUIDGen {
 
-    private static UUIDGen uuidGen;
-
     /**
-     * Initialize mac address on first invocation
+     * No instances needed.
      */
     private UUIDGen() {
-        initClockSeqAndNode();
-    }
-
-    private static class UUIDGenHolder {
-      public static final UUIDGen instance = new UUIDGen();
-    }
-
-    public static UUIDGen getInstance() {
-      return UUIDGenHolder.instance;
+        super();
     }
 
     /**
      * The last time value. Used to remove duplicate UUIDs.
      */
-    private long lastTime = Long.MIN_VALUE;
-    
+    private static long lastTime = Long.MIN_VALUE;
+
     /**
      * The cached MAC address.
      */
-    private String macAddress = null;
+    private static String macAddress = null;
 
     /**
      * The current clock and node value.
      */
-    private long clockSeqAndNode = 0x8000000000000000L;
+    private static long clockSeqAndNode = 0x8000000000000000L;
 
+    static {
 
-
-    private void initClockSeqAndNode() {
-      try {
-            macAddress = HardwareAddressLookup.getHarwareAddress();
+        try {
+            Class.forName("java.net.InterfaceAddress");
+            macAddress = Class.forName(
+                    "com.eaio.uuid.UUIDGen$HardwareAddressLookup").newInstance().toString();
         }
-        catch (SocketException se) {
-           System.err.println("There was a problem trying to obtain a MAC address through Java API. " +
-           "Falling back to system command execution. Stack trace follows.");
-           se.printStackTrace();
+        catch (ExceptionInInitializerError err) {
+            // Ignored.
+        }
+        catch (ClassNotFoundException ex) {
+            // Ignored.
+        }
+        catch (LinkageError err) {
+            // Ignored.
+        }
+        catch (IllegalAccessException ex) {
+            // Ignored.
+        }
+        catch (InstantiationException ex) {
+            // Ignored.
+        }
+        catch (SecurityException ex) {
+            // Ignored.
         }
 
         if (macAddress == null) {
@@ -149,10 +157,10 @@ public final class UUIDGen {
 
             }
             catch (SecurityException ex) {
-                ex.printStackTrace();
+                // Ignore it.
             }
             catch (IOException ex) {
-                ex.printStackTrace();
+                // Ignore it.
             }
             finally {
                 if (p != null) {
@@ -174,7 +182,7 @@ public final class UUIDGen {
                         p.getOutputStream().close();
                     }
                     catch (IOException ex) {
-
+                        // Ignore it.
                     }
                     p.destroy();
                 }
@@ -210,7 +218,7 @@ public final class UUIDGen {
      * @return the clockSeqAndNode value
      * @see UUID#getClockSeqAndNode()
      */
-    public long getClockSeqAndNode() {
+    public static long getClockSeqAndNode() {
         return clockSeqAndNode;
     }
 
@@ -221,19 +229,19 @@ public final class UUIDGen {
      * @return a new time value
      * @see UUID#getTime()
      */
-    public long newTime() {
+    public static long newTime() {
         return createTime(System.currentTimeMillis());
     }
-    
+
     /**
      * Creates a new time field from the given timestamp. Note that even identical
      * values of <code>currentTimeMillis</code> will produce different time fields.
-     * 
+     *
      * @param currentTimeMillis the timestamp
      * @return a new time value
      * @see UUID#getTime()
      */
-    public synchronized long createTime(long currentTimeMillis) {
+    public static synchronized long createTime(long currentTimeMillis) {
 
         long time;
 
@@ -263,13 +271,13 @@ public final class UUIDGen {
         return time;
 
     }
-    
+
     /**
      * Returns the MAC address. Not guaranteed to return anything.
-     * 
+     *
      * @return the MAC address, may be <code>null</code>
      */
-    public String getMACAddress() {
+    public static String getMACAddress() {
         return macAddress;
     }
 
@@ -325,23 +333,30 @@ public final class UUIDGen {
      */
     static class HardwareAddressLookup {
 
-        public static String getHarwareAddress() throws SocketException {
-          String out = null;
-
-          Enumeration<NetworkInterface> ifs = NetworkInterface.getNetworkInterfaces();
-          if (ifs != null) {
-            while (ifs.hasMoreElements()) {
-              NetworkInterface iface = ifs.nextElement();
-              byte[] hardware = iface.getHardwareAddress();
-              if (hardware != null && hardware.length == 6
-                && hardware[1] != (byte) 0xff) {
-                out = Hex.append(new StringBuilder(36), hardware).toString();
-                break;
-              }
+        /**
+         * @see java.lang.Object#toString()
+         */
+        @Override
+        public String toString() {
+            String out = null;
+            try {
+                Enumeration<NetworkInterface> ifs = NetworkInterface.getNetworkInterfaces();
+                if (ifs != null) {
+                    while (ifs.hasMoreElements()) {
+                        NetworkInterface iface = ifs.nextElement();
+                        byte[] hardware = iface.getHardwareAddress();
+                        if (hardware != null && hardware.length == 6
+                                && hardware[1] != (byte) 0xff) {
+                            out = Hex.append(new StringBuilder(36), hardware).toString();
+                            break;
+                        }
+                    }
+                }
             }
-          }
-
-          return out;
+            catch (SocketException ex) {
+                // Ignore it.
+            }
+            return out;
         }
 
     }
